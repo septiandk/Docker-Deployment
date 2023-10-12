@@ -1,0 +1,25 @@
+services:
+  modsec2-nginx:
+    container_name: waf
+    image: owasp/modsecurity-crs:3.3.5-nginx-202308071108
+    environment:
+      BACKEND: http://192.168.56.102
+      TZ: Asia/Jakarta
+      MODSEC_RULE_ENGINE: On
+      BLOCKING_PARANOIA: 3
+      ERRORLOG: "/var/log/error.log"
+      ACCESSLOG: "/var/log/access.log"
+      MODSEC_AUDIT_LOG_FORMAT: Native
+      MODSEC_AUDIT_LOG_TYPE: Serial
+      MODSEC_AUDIT_LOG: "/var/log/modsec_audit.log"
+      MODSEC_TMP_DIR: "/tmp"
+      MODSEC_RESP_BODY_ACCESS: "On"
+      MODSEC_RESP_BODY_MIMETYPE: "text/plain text/html text/xml application/json"
+      COMBINED_FILE_SIZES: "65535"
+    #volumes:
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+#      - ./modsecurity.conf:/etc/modsecurity.d/modsecurity.conf
+      - ./request-test.conf:/etc/modsecurity.d/owasp-crs/rules/request-test.conf

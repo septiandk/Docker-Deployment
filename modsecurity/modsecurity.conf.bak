@@ -1,0 +1,47 @@
+# Aktifkan ModSecurity
+SecRuleEngine On
+
+# Set log ke level yang lebih tinggi untuk deteksi risiko OWASP Top 10
+SecAuditLogRelevantStatus "^(?:5|4\d[^4])"
+
+# Aktifkan pemeriksaan serangan umum
+SecRuleRemoveById 950004
+Include modsecurity.d/activated_rules/*.conf
+
+# Aturan untuk melindungi dari injeksi SQL (A1)
+SecRule ARGS|XML:/* "(['\"]?)(?:[sS]['\"]?|[sS][\s\r\n]*\([^)]*\))" \
+    "id:1001,phase:2,t:none,t:htmlEntityDecode,t:compressWhiteSpace,block,msg:'SQL Injection Attack Detected',logdata:'Matched Data: %{TX.0} found within %{MATCHED_VAR_NAME}: %{MATCHED_VAR}'"
+
+# Melindungi dari serangan XSS (A7)
+SecRule REQUEST_HEADERS:Content-Type "text/xml" "id:1002,phase:1,deny,status:400,msg:'Invalid Content-Type'"
+
+SecRule REQUEST_COOKIES|!REQUEST_COOKIES:/__utm/|REQUEST_COOKIES_NAMES|ARGS_NAMES|ARGS|XML:/* "(<|%3C)([a-zA-Z0-9]+)([^>]*)(>|%3E)" \
+    "id:1003,phase:2,t:none,t:htmlEntityDecode,t:lowercase,t:removeWhitespace,block,msg:'Cross-Site Scripting (XSS) Attack Detected',logdata:'Matched Data: %{TX.0} found within %{MATCHED_VAR_NAME}: %{MATCHED_VAR}'"
+
+# Mencegah serangan XML External Entities (XXE) (A4)
+SecRule XML:/* "^(<\?xml[\s\S]+\?>|<!DOCTYPE[\s\S]+)http:\/\/www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd" \
+    "id:1004,phase:1,deny,status:400,msg:'Potential XXE Attack Detected',logdata:'Matched Data: %{TX.0}'"
+
+# Melindungi dari serangan injeksi CSRF (A8)
+SecRule REQUEST_HEADERS:Content-Type "multipart/form-data" "chain,id:1005,phase:1,t:none,t:lowercase"
+SecRule REQUEST_METHOD "POST" "chain"
+SecRule REQUEST_BODY "!(boundary=\w+)" "t:none,t:lowercase,deny,status:403,msg:'Missing MIME Boundary in Request Body'"
+
+# Blokir akses ke direktori sensitif (A5)
+SecRule REQUEST_URI "^/admin/" "id:1006,phase:1,deny,status:403,msg:'Access to Admin Section Denied'"
+
+# Gunakan Output Encoding untuk mencegah XSS (A7)
+SecRuleUpdateActionById 981205 "t:replaceComments=<>"
+
+# Berlakukan kontrol akses yang ketat (A5)
+SecRule REQUEST_METHOD "POST" "chain,id:1007,phase:2"
+SecRule REQUEST_HEADERS:Referer "!(example\.com)" "deny,status:403,msg:'Forbidden Referer'"
+
+# Memeriksa komponen yang dikenal berisiko (A9)
+SecRule REQUEST_HEADERS:User-Agent "libwww-perl" "id:1008,phase:1,deny,status:403,msg:'Forbidden User-Agent'"
+
+# Aktifkan Logging yang Memadai (A10)
+SecAuditEngine RelevantOnly
+SecAuditLogType Serial
+SecAuditLog /var/log/modsec_audit.log
+
